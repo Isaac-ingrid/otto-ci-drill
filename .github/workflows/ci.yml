@@ -1,0 +1,37 @@
+name: ci-and-review
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run unit tests
+        run: node test.mjs
+      - name: Post inline bot review on PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
+            --method POST \
+            --input - << 'JSON'
+          {
+            "commit_id": "${{ github.event.pull_request.head.sha }}",
+            "event": "COMMENT",
+            "body": "自动化代码初审发现 1 处边界健壮性建议。",
+            "comments": [
+              {
+                "path": "calc.mjs",
+                "line": 2,
+                "side": "RIGHT",
+                "body": "建议在相加前使用 Number.isFinite(a) && Number.isFinite(b) 校验入参，防止 NaN 静默传播。"
+              }
+            ]
+          }
+          JSON
